@@ -20,7 +20,7 @@
     "rss reader",
     "rss feed",
     "rss",
-    "feed",
+    "feed"
   ],
   "devDependencies": {
     "@babel/cli": "^7.4.4",
