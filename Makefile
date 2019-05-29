@@ -1,14 +1,20 @@
-install:
+install: install-deps install-flow-typed
+
+develop:
+	npx webpack-dev-server
+
+install-deps:
 	npm install
 
-start:
-	npx babel-node -- src/bin/test.js
+build:
+	rm -rf dist
+	NODE_ENV=production npx webpack
 
 test:
 	npm test
 
-publish:
-	npm publish --dry-run
-
 lint:
 	npx eslint .
+
+publish:
+	npm publish
