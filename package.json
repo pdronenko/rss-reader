@@ -1,0 +1,45 @@
+{
+  "name": "RSSreader-pdronenko",
+  "version": "0.1.0",
+  "description": "Simple app for reading RSS.",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/pdronenko/frontend-project-lvl3"
+  },
+  "scripts": {
+    "test": "jest",
+    "build": "NODE_ENV=production babel src --out-dir dist --source-maps inline",
+    "prepublishOnly": "npm run build"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  },
+  "author": "pdronenko",
+  "license": "ISC",
+  "keywords": [
+    "rss reader",
+    "rss feed",
+    "rss",
+    "feed",
+  ],
+  "devDependencies": {
+    "@babel/cli": "^7.4.4",
+    "@babel/core": "^7.4.5",
+    "@babel/node": "^7.4.5",
+    "@babel/preset-env": "^7.4.5",
+    "babel-eslint": "^10.0.1",
+    "babel-jest": "^24.8.0",
+    "eslint": "^5.16.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-plugin-import": "^2.17.3",
+    "eslint-plugin-babel": "^5.3.0",
+    "eslint-plugin-jest": "^22.6.4",
+    "eslint-plugin-lodash-fp": "^2.2.0-a1",
+    "jest": "^24.8.0",
+    "jest-cli": "^24.8.0"
+  },
+  "dependencies": {
+    "lodash": "^4.17.11",
+    "source-map-support": "^0.5.12"
+  }
+}
