@@ -5,5 +5,37 @@
     <title>RSS Reader</title>
   </head>
   <body>
+    <main role="main" class="container">
+      <div class="jumbotron">
+        <h1>RSS reader</h1>
+        <p class="lead">Welcome to RSS reader</p>
+          <form id="rss-url-input">
+            <div class="form-group">
+              <label for="inputFeed">Feed URL or website...</label>
+              <input type="text" class="form-control" id="inputFeed" aria-describedby="feedHelp" placeholder="...">
+              <small id="feedHelp" class="form-text text-muted">Enter a site or feed URL to add feed</small>
+            </div>
+            <button type="submit" class="btn btn-primary" id="btn-add-feed" disabled>Add feed</button>
+          </form>
+      </div>
+      <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <strong>Holy guacamole!</strong> You should check in on some of those fields below.
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="row">
+        <div class="col-4">
+          <div class="list-group">
+            <a href="#" class="list-group-item list-group-item-action disabled" tabindex="-1" aria-disabled="true">Добавьте фид</a>
+          </div>
+        </div>
+        <div class="col">
+          <ul class="list-group">
+            <li class="list-group-item">Здесь будет информация</li>
+          </ul>
+        </div>
+      </div>
+    </main>
   </body>
 </html>

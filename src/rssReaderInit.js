@@ -1,22 +1,32 @@
-import { isURL } from 'validator';
-import header from './header';
+import { watch } from 'melanke-watchjs';
+import { handleInput, inputState } from './handleInput';
 
 export default () => {
-  document.body.innerHTML = header();
-  const form = document.getElementById('inputFeed');
+  const input = document.getElementById('inputFeed');
   const addFeedBtn = document.getElementById('btn-add-feed');
-
-  const validateInput = ({ target }) => {
-    const inputClasses = target.classList;
-    if (isURL(target.value)) {
-      inputClasses.remove('border-danger');
-      inputClasses.add('border', 'border-success');
-      addFeedBtn.removeAttribute('disabled');
-      return;
+  const inputClasses = input.classList;
+  watch(inputState, 'status', (prop, action, newvalue) => {
+    switch (newvalue) {
+      case 'empty':
+        console.log('empty');
+        break;
+      case 'isNewURL':
+        inputClasses.remove('border-danger');
+        inputClasses.add('border', 'border-success');
+        addFeedBtn.removeAttribute('disabled');
+        break;
+      case 'isDouble':
+        inputClasses.add('border', 'border-warning');
+        addFeedBtn.setAttribute('disabled', 'disabled');
+        break;
+      case 'notURL':
+        inputClasses.add('border', 'border-danger');
+        addFeedBtn.setAttribute('disabled', 'disabled');
+        break;
+      default:
+        console.log('error');
     }
-    inputClasses.add('border', 'border-danger');
-    addFeedBtn.setAttribute('disabled', 'disabled');
-  };
+  });
 
-  form.addEventListener('keyup', validateInput);
+  input.addEventListener('keyup', handleInput);
 };
