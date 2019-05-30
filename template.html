@@ -12,7 +12,7 @@
           <form id="rss-url-input">
             <div class="form-group">
               <label for="inputFeed">Feed URL or website...</label>
-              <input type="text" class="form-control" id="inputFeed" aria-describedby="feedHelp" placeholder="...">
+              <input type="text" class="form-control border" id="inputFeed" aria-describedby="feedHelp" placeholder="...">
               <small id="feedHelp" class="form-text text-muted">Enter a site or feed URL to add feed</small>
             </div>
             <button type="submit" class="btn btn-primary" id="btn-add-feed" disabled>Add feed</button>
@@ -26,13 +26,12 @@
       </div>
       <div class="row">
         <div class="col-4">
-          <div class="list-group">
-            <a href="#" class="list-group-item list-group-item-action disabled" tabindex="-1" aria-disabled="true">Добавьте фид</a>
-          </div>
+            <div class="list-group" id='feed-list'>
+            </div>
         </div>
         <div class="col">
-          <ul class="list-group">
-            <li class="list-group-item">Здесь будет информация</li>
+          <ul class="list-group" id="rss-list">
+            <li class="list-group-item">Add and choose feed</li>
           </ul>
         </div>
       </div>
