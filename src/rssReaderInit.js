@@ -8,7 +8,7 @@ const addFeedState = {
 
 const feedList = [];
 
-const currentFeed = '';
+// const currentFeed = '';
 
 export default () => {
   const form = document.getElementById('rss-url-input');
@@ -44,7 +44,7 @@ export default () => {
         console.log('error');
     }
   });
-  
+
   watch(addFeedState, 'status', (prop, action, newvalue) => {
     switch (newvalue) {
       case 'idle':
@@ -59,7 +59,7 @@ export default () => {
         console.log('error');
     }
   });
-  
+
   watch(feedList, () => {
     feedListEl.innerHTML = feedList.map(({ url, title, description }) => {
       const newFeed = `
@@ -69,11 +69,11 @@ export default () => {
           </div>
           <p class="mb-1">${description}</p>
         </a>
-      `
+      `;
       return newFeed;
     }).join('');
-  })
-  
+  });
+
   const handleClickFeed = (e) => {
     e.preventDefault();
     const currentUrl = e.target.closest('a');
@@ -89,7 +89,7 @@ export default () => {
       return newItem;
     }).join('');
   };
-  
+
   const handleSubmit = (e) => {
     const domparser = new DOMParser();
     addFeedState.status = 'loading';
@@ -107,13 +107,16 @@ export default () => {
         const filteredRssItems = rssItems.map(item => ({
           title: item.querySelector('title').textContent,
           link: item.querySelector('link').textContent,
-        }))
-        feedList.push({ url, title, description, items: filteredRssItems });
+        }));
+        feedList.push({
+          url, title, description, items: filteredRssItems,
+        });
       })
       .catch((error) => {
+        console.log(error);
         addFeedState.status = 'idle';
         inputState.status = 'notURL';
-      })
+      });
   };
 
   form.addEventListener('change', handleInput);
