@@ -5,7 +5,10 @@
 
 RSS Reader is a simple reader for your favorite websites and blogs.
 
-![RSS Reader Screenshot](https://github.com/pdronenko/frontend-project-lvl3/blob/master/images/reader-preview.png)
 
 ## Example
 http://rssreader-pdronenko.surge.sh
+
+=======
+
+![RSS Reader Screenshot](https://github.com/pdronenko/frontend-project-lvl3/blob/master/images/reader-preview.png)
