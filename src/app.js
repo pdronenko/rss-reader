@@ -255,11 +255,11 @@ export default () => {
   watch(formState, 'buttonState', (prop, action, newValue) => {
     switch (newValue) {
       case 'on':
-        addFeedBtn.innerHTML = 'Add feed';
+        addFeedBtn.innerHTML = 'Add Feed';
         addFeedBtn.removeAttribute('disabled');
         break;
       case 'off':
-        addFeedBtn.innerHTML = 'Add feed';
+        addFeedBtn.innerHTML = 'Add Feed';
         addFeedBtn.setAttribute('disabled', 'disabled');
         break;
       case 'loading':
