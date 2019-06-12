@@ -1,9 +1,9 @@
 import StateMachine from 'javascript-state-machine';
-import { differenceBy } from 'lodash';
+import { differenceBy, find } from 'lodash';
 import axios from 'axios';
 import { watch } from 'melanke-watchjs';
 import { isURL } from 'validator';
-import states from './states';
+import getStates from './states';
 
 export default () => {
   const corsProxy = 'https://cors-anywhere.herokuapp.com/';
@@ -16,21 +16,49 @@ export default () => {
 
   const {
     formState, alertState, feedListState, modalInfo,
-  } = states();
+  } = getStates();
 
-  const urlAlreadyAdded = newURL => !!feedListState.feedList.find(({ url }) => newURL === url);
+  const urlAlreadyAdded = newURL => !!find(feedListState.feedList, ({ url }) => newURL === url);
 
-  const isDomParserError = parsedData => parsedData.getElementsByTagName('parsererror').length > 0;
+  const getItemsArray = (parsedData) => {
+    const itemsNodeList = parsedData.querySelectorAll('item');
+    const items = [];
+    itemsNodeList.forEach((item) => {
+      const title = item.querySelector('title').textContent;
+      const desc = item.querySelector('description').textContent;
+      const link = item.querySelector('link').textContent;
+      const pubDate = item.querySelector('pubDate').textContent;
+      items.push({
+        title, link, desc, pubDate,
+      });
+    });
+    return items;
+  };
 
-  const getDataFromURL = url => axios.get(`${corsProxy}${url}`)
-    .then(({ data }) => {
+  const getDataFromURL = (url) => {
+    const isDomParserError = parsedData => parsedData.getElementsByTagName('parsererror').length > 0;
+    const isAtomFeedType = parsedData => parsedData.getElementsByTagName('entry').length > 0;
+
+    const responseDataPromise = axios.get(`${corsProxy}${url}`);
+    const parsedDataPromise = responseDataPromise.then(({ data }) => {
       const domparser = new DOMParser();
       const parsedData = domparser.parseFromString(data, 'application/xml');
       if (isDomParserError(parsedData)) {
         throw new Error('error parsing data');
       }
-      return parsedData;
+      if (isAtomFeedType(parsedData)) {
+        throw new Error('Atom feeds are not supported');
+      }
+      const title = parsedData.querySelector('channel title').textContent;
+      const desc = parsedData.querySelector('channel description').textContent;
+      const items = getItemsArray(parsedData);
+      return {
+        url, title, desc, items,
+      };
     });
+
+    return parsedDataPromise;
+  };
 
   const handleClickFeed = url => (e) => {
     e.preventDefault();
@@ -81,21 +109,6 @@ export default () => {
     });
   };
 
-  const getItemsArray = (parsedData) => {
-    const itemsNodeList = parsedData.querySelectorAll('item');
-    const items = [];
-    itemsNodeList.forEach((item) => {
-      const title = item.querySelector('title').textContent;
-      const desc = item.querySelector('description').textContent;
-      const link = item.querySelector('link').textContent;
-      const pubDate = item.querySelector('pubDate').textContent;
-      items.push({
-        title, link, desc, pubDate,
-      });
-    });
-    return items;
-  };
-
   const feedFsm = new StateMachine({
     init: 'timeout',
     transitions: [
@@ -110,7 +123,7 @@ export default () => {
           const feedDataPromise = getDataFromURL(feedURL);
           promises.push(feedDataPromise
             .then((parsedData) => {
-              const itemsFromData = getItemsArray(parsedData);
+              const itemsFromData = parsedData.items;
               const indexOfCurrentFeed = feedListState.feedList
                 .findIndex(({ url }) => url === feedURL);
               const currentItems = feedListState.feedList[indexOfCurrentFeed].items;
@@ -169,7 +182,7 @@ export default () => {
         const feedDataPromise = getDataFromURL(formState.inputText);
         feedDataPromise
           .then((parsedData) => {
-            formFsm.addNewFeed(parsedData, input.value);
+            formFsm.addNewFeed(parsedData);
             if (feedListState.addedFeedsCount < 1) {
               feedFsm.getNewData();
             }
@@ -186,18 +199,14 @@ export default () => {
         alertState.type = 'wrongURL';
         alertState.alertCount += 1;
       },
-      onAddNewFeed: function f(lifecycle, parsedData, url) {
+      onAddNewFeed: function f(lifecycle, parsedData) {
         formState.inputText = '';
         formState.buttonState = 'off';
         formState.inputState = 'idle';
         alertState.type = 'feedAdded';
         alertState.alertCount += 1;
-        const title = parsedData.querySelector('channel title').textContent;
-        const desc = parsedData.querySelector('channel description').textContent;
-        const items = getItemsArray(parsedData);
-        feedListState.feedList.push({
-          url, title, desc, items,
-        });
+
+        feedListState.feedList.push(parsedData);
       },
     },
   });
@@ -312,7 +321,7 @@ export default () => {
     alertContainer.insertBefore(newAlert, alertContainer.firstChild);
   });
 
-  input.addEventListener('change', (e) => {
+  input.addEventListener('input', (e) => {
     formFsm.validateURL(e);
   });
   form.addEventListener('submit', (e) => {
