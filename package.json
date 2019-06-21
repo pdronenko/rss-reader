@@ -36,17 +36,14 @@
     "webpack-dev-server": "^3.1.10"
   },
   "dependencies": {
-    "@babel/polyfill": "^7.2.5",
     "axios": "^0.18.1",
     "bootstrap": "^4.3.1",
     "css-loader": "^2.1.1",
-    "javascript-state-machine": "^3.1.0",
     "jquery": "^3.4.1",
     "lodash": "^4.17.11",
     "melanke-watchjs": "^1.5.0",
     "popper.js": "^1.15.0",
     "style-loader": "^0.23.1",
-    "validator": "^11.0.0",
-    "xstate": "^4.6.1"
+    "validator": "^11.0.0"
   }
 }
