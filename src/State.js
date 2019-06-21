@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
   differenceBy, uniqueId, chunk, flatten,
 } from 'lodash';
-import parseRSS from './RssParser';
+import parseRSS from './rssParser';
 
 const getDataFromUrl = (url) => {
   const corsProxy = 'https://cors-anywhere.herokuapp.com/';
