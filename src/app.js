@@ -1,330 +1,135 @@
-import StateMachine from 'javascript-state-machine';
-import { differenceBy, find } from 'lodash';
-import axios from 'axios';
 import { watch } from 'melanke-watchjs';
-import { isURL } from 'validator';
-import getStates from './states';
+import $ from 'jquery';
+import { renderAlert, renderItem, renderFeed } from './renderers';
+import State from './State';
 
 export default () => {
-  const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+  const state = new State();
   const form = document.getElementById('rss-url-input');
-  const input = document.getElementById('inputFeed');
+  const input = document.getElementById('input-feed');
   const addFeedBtn = document.getElementById('btn-add-feed');
-  const feedListDiv = document.getElementById('feed-list');
-  const itemListDiv = document.getElementById('item-list');
+  const addFeedBtnText = addFeedBtn.textContent;
+  const feedListContainer = document.getElementById('feed-list');
+  const itemsListContainer = document.getElementById('item-list');
   const alertContainer = document.getElementById('alert-container');
+  const modalContainer = document.getElementById('modal-body');
 
-  const {
-    formState, alertState, feedListState, modalInfo,
-  } = getStates();
-
-  const urlAlreadyAdded = newURL => !!find(feedListState.feedList, ({ url }) => newURL === url);
-
-  const getItemsArray = (parsedData) => {
-    const itemsNodeList = parsedData.querySelectorAll('item');
-    const items = [];
-    itemsNodeList.forEach((item) => {
-      const title = item.querySelector('title').textContent;
-      const desc = item.querySelector('description').textContent;
-      const link = item.querySelector('link').textContent;
-      const pubDate = item.querySelector('pubDate').textContent;
-      items.push({
-        title, link, desc, pubDate,
-      });
-    });
-    return items;
+  const handleClickFeed = (e) => {
+    const feedID = e.target.closest('a').hash.slice(1);
+    state.changeActiveFeed(feedID);
   };
 
-  const getDataFromURL = (url) => {
-    const isDomParserError = parsedData => parsedData.getElementsByTagName('parsererror').length > 0;
-    const isAtomFeedType = parsedData => parsedData.getElementsByTagName('entry').length > 0;
-
-    const responseDataPromise = axios.get(`${corsProxy}${url}`);
-    const parsedDataPromise = responseDataPromise.then(({ data }) => {
-      const domparser = new DOMParser();
-      const parsedData = domparser.parseFromString(data, 'application/xml');
-      if (isDomParserError(parsedData)) {
-        throw new Error('error parsing data');
-      }
-      if (isAtomFeedType(parsedData)) {
-        throw new Error('Atom feeds are not supported');
-      }
-      const title = parsedData.querySelector('channel title').textContent;
-      const desc = parsedData.querySelector('channel description').textContent;
-      const items = getItemsArray(parsedData);
-      return {
-        url, title, desc, items,
-      };
-    });
-
-    return parsedDataPromise;
-  };
-
-  const handleClickFeed = url => (e) => {
+  const handleClickDescButton = itemDesc => (e) => {
     e.preventDefault();
-    feedListState.prevFeedURL = feedListState.currentFeedURL;
-    feedListState.currentFeedURL = url;
+    state.changeModalDesc(itemDesc);
   };
 
-  const handleDescButton = desc => () => {
-    modalInfo.desc = desc;
-  };
-
-  const makeNewItemElement = (title, link, desc, pubDate) => {
-    const newitemEl = document.createElement('a');
-    newitemEl.classList.add('list-group-item', 'list-group-item-action');
-    newitemEl.setAttribute('href', link);
-    newitemEl.setAttribute('target', '_blank');
-    newitemEl.setAttribute('pubDate', pubDate);
-    newitemEl.innerHTML = `
-      ${title}
-      <a href="#modalDesc" class="btn btn-primary float-right" data-toggle="modal">Description</a>
-    `;
-    const descButton = newitemEl.querySelector('a');
-    descButton.addEventListener('click', handleDescButton(desc));
-    return newitemEl;
-  };
-
-  const makeNewAlert = (alertStyle, message) => {
-    const newAlert = document.createElement('div');
-    newAlert.setAttribute('role', 'alert');
-    newAlert.classList.add('alert', alertStyle, 'alert-dismissible', 'fade', 'show');
-    newAlert.innerHTML = `
-      <strong>${message}</strong>
-      <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-        <span aria-hidden="true">&times;</span>
-      </button>
-    `;
-    return newAlert;
-  };
-
-  const renderFeedItems = (items) => {
-    itemListDiv.innerHTML = '';
-    feedListState.activeFeedItemsCount = items.length;
-    items.forEach(({
-      title, link, desc, pubDate,
-    }) => {
-      const newitemEl = makeNewItemElement(title, link, desc, pubDate);
-      itemListDiv.append(newitemEl);
+  const renderItems = (items) => {
+    itemsListContainer.innerHTML = '';
+    items.forEach((item) => {
+      const itemEl = renderItem({ ...item, handleClickDescButton });
+      itemsListContainer.insertBefore(itemEl, itemsListContainer.firstChild);
     });
   };
 
-  const feedFsm = new StateMachine({
-    init: 'timeout',
-    transitions: [
-      { name: 'getNewData', from: 'timeout', to: 'loadingData' },
-      { name: 'timeoutBetweenRequests', from: 'loadingData', to: 'timeout' },
-    ],
-    methods: {
-      onGetNewData: function f() {
-        const feedURLs = feedListState.feedList.map(feed => feed.url);
-        const promises = [];
-        feedURLs.forEach((feedURL) => {
-          const feedDataPromise = getDataFromURL(feedURL);
-          promises.push(feedDataPromise
-            .then((parsedData) => {
-              const itemsFromData = parsedData.items;
-              const indexOfCurrentFeed = feedListState.feedList
-                .findIndex(({ url }) => url === feedURL);
-              const currentItems = feedListState.feedList[indexOfCurrentFeed].items;
-              const newItems = differenceBy(itemsFromData, currentItems, 'pubDate');
-              newItems.forEach((item) => {
-                feedListState.feedList[indexOfCurrentFeed].items.unshift(item);
-              });
-            }));
-        });
-        Promise.all(promises).then(() => {
-          feedFsm.timeoutBetweenRequests();
-        });
-      },
-      onTimeoutBetweenRequests: function f() {
-        setTimeout(() => {
-          feedFsm.getNewData();
-        }, 5000);
-      },
-    },
-  });
-
-  const formFsm = new StateMachine({
-    init: 'buttonDisabled',
-    transitions: [
-      { name: 'validateURL', from: ['buttonDisabled', 'buttonEnabled'], to: 'buttonEnabled' },
-      { name: 'pushButton', from: 'buttonEnabled', to: 'loadingData' },
-      { name: 'handleLoadingError', from: 'loadingData', to: 'buttonDisabled' },
-      { name: 'addNewFeed', from: 'loadingData', to: 'buttonDisabled' },
-    ],
-    methods: {
-      onBeforeValidateURL: function f(lifecycle, e) {
-        const newURL = e.target.value;
-        formState.inputText = newURL;
-        if (newURL === '') {
-          formState.buttonState = 'off';
-          formState.inputState = 'idle';
-          return false;
-        } if (urlAlreadyAdded(newURL)) {
-          formState.buttonState = 'off';
-          formState.inputState = 'isDouble';
-          alertState.type = 'isDouble';
-          alertState.alertCount += 1;
-          return false;
-        } if (isURL(newURL)) {
-          formState.buttonState = 'on';
-          formState.inputState = 'isURL';
-          return true;
-        }
-        formState.buttonState = 'off';
-        formState.inputState = 'notURL';
-        return false;
-      },
-      onPushButton: function f(lifecycle, e) {
-        e.preventDefault();
-        formState.buttonState = 'loading';
-        const feedDataPromise = getDataFromURL(formState.inputText);
-        feedDataPromise
-          .then((parsedData) => {
-            formFsm.addNewFeed(parsedData);
-            if (feedListState.addedFeedsCount < 1) {
-              feedFsm.getNewData();
-            }
-          })
-          .catch((error) => {
-            console.log(error);
-            formFsm.handleLoadingError();
-          });
-      },
-      onHandleLoadingError: function f() {
-        formState.inputText = '';
-        formState.buttonState = 'off';
-        formState.inputState = 'idle';
-        alertState.type = 'wrongURL';
-        alertState.alertCount += 1;
-      },
-      onAddNewFeed: function f(lifecycle, parsedData) {
-        formState.inputText = '';
-        formState.buttonState = 'off';
-        formState.inputState = 'idle';
-        alertState.type = 'feedAdded';
-        alertState.alertCount += 1;
-
-        feedListState.feedList.push(parsedData);
-      },
-    },
-  });
-
-  watch(modalInfo, 'desc', () => {
-    const modalDesc = document.querySelector('#modalBody');
-    modalDesc.textContent = modalInfo.desc;
-  });
-
-  watch(feedListState, 'currentFeedURL', () => {
-    const { currentFeedURL, prevFeedURL, feedList } = feedListState;
-    const changeActiveFeed = () => {
-      if (prevFeedURL !== '') {
-        const prevFeed = document.querySelector(`[href="${prevFeedURL}"]`);
-        prevFeed.classList.remove('active');
+  watch(state, 'inputState', () => {
+    const inputClasses = input.classList;
+    inputClasses.remove('border-danger', 'border-warning', 'border-success');
+    input.removeAttribute('readonly');
+    addFeedBtn.setAttribute('disabled', 'disabled');
+    addFeedBtn.dataset.originalTitle = '';
+    $('#btn-add-feed').tooltip('hide');
+    addFeedBtn.innerHTML = addFeedBtnText;
+    switch (state.inputState) {
+      case 'idle': {
+        break;
       }
-      const activeFeed = document.querySelector(`[href="${currentFeedURL}"]`);
-      activeFeed.classList.add('active');
-    };
-    changeActiveFeed();
-    const { items } = feedList.find(({ url }) => url === currentFeedURL);
-    renderFeedItems(items);
-  });
-
-  watch(feedListState, 'feedList', () => {
-    const {
-      feedList, currentFeedURL, addedFeedsCount, activeFeedItemsCount,
-    } = feedListState;
-    if (feedList.length === addedFeedsCount) {
-      if (currentFeedURL === '') {
-        return;
+      case 'notURL': {
+        inputClasses.add('border-danger');
+        break;
       }
-      const activeFeed = feedList.find(({ url }) => url === currentFeedURL);
-      if (activeFeed.items.length === activeFeedItemsCount) {
-        return;
+      case 'isDouble': {
+        inputClasses.add('border-warning');
+        addFeedBtn.dataset.originalTitle = 'This URL is already added';
+        $('#btn-add-feed').tooltip('show');
+        break;
       }
-      renderFeedItems(activeFeed.items);
-      return;
-    }
-    const { url, title, desc } = feedList[feedList.length - 1];
-    const newFeed = document.createElement('a');
-    newFeed.classList.add('list-group-item', 'list-group-item-action', 'flex-column', 'align-items-start');
-    newFeed.setAttribute('href', url);
-    newFeed.innerHTML = `
-      <div class="d-flex w-100 justify-content-between">
-        <h5 class="mb-1">${title}</h5>
-      </div>
-      <p class="mb-1">${desc}</p>
-    `;
-    newFeed.addEventListener('click', handleClickFeed(url));
-    feedListDiv.insertBefore(newFeed, feedListDiv.firstChild);
-    feedListState.addedFeedsCount += 1;
-  });
-
-  watch(formState, 'buttonState', (prop, action, newValue) => {
-    switch (newValue) {
-      case 'on':
-        addFeedBtn.innerHTML = 'Add Feed';
+      case 'isURL': {
+        inputClasses.add('border-success');
         addFeedBtn.removeAttribute('disabled');
         break;
-      case 'off':
-        addFeedBtn.innerHTML = 'Add Feed';
-        addFeedBtn.setAttribute('disabled', 'disabled');
-        break;
-      case 'loading':
+      }
+      default:
+        console.log(`${state.inputState} - wrong value`);
+    }
+  });
+
+  watch(state, 'feedRequestState', () => {
+    const { feedRequestState } = state;
+    switch (feedRequestState) {
+      case 'loading': {
+        input.setAttribute('readonly', 'readonly');
         addFeedBtn.setAttribute('disabled', 'disabled');
         addFeedBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
         break;
-      default:
-        console.log(`${newValue} - wrong value`);
-    }
-  });
-
-  watch(formState, 'inputState', (prop, action, newValue) => {
-    const inputClasses = input.classList;
-    inputClasses.remove('border-danger', 'border-warning', 'border-success');
-    switch (newValue) {
-      case 'idle':
+      }
+      case 'success': {
+        const newFeedTitle = state.feedList[0].feedTitle;
+        const newAlert = renderAlert('alert-success', `Feed "${newFeedTitle}" successfuly added`);
+        alertContainer.insertBefore(newAlert, alertContainer.firstChild);
         input.value = '';
         break;
-      case 'notURL':
-        inputClasses.add('border-danger');
+      }
+      case 'failure': {
+        const alertEl = renderAlert('alert-danger', 'This URL is wrong or not RSS, try another');
+        alertContainer.insertBefore(alertEl, alertContainer.firstChild);
         break;
-      case 'isDouble':
-        inputClasses.add('border-warning');
-        break;
-      case 'isURL':
-        inputClasses.add('border-success');
-        break;
+      }
       default:
-        console.log(`${newValue} - wrong value`);
+        console.log(`${feedRequestState} - wrong value`);
     }
   });
 
-  watch(alertState, 'alertCount', () => {
-    const alertTypesInfo = {
-      isDouble: {
-        message: 'This URL is already added',
-        style: 'alert-warning',
-      },
-      wrongURL: {
-        message: 'This URL is wrong or not RSS, try another',
-        style: 'alert-danger',
-      },
-      feedAdded: {
-        message: 'Feed successfuly added',
-        style: 'alert-success',
-      },
-    };
-    const { type } = alertState;
-    const newAlert = makeNewAlert(alertTypesInfo[type].style, alertTypesInfo[type].message);
-    alertContainer.insertBefore(newAlert, alertContainer.firstChild);
+  watch(state, 'feedList', () => {
+    feedListContainer.innerHTML = '';
+    state.feedList.forEach((feed) => {
+      const feedEl = renderFeed({ ...feed, handleClickFeed });
+      if (feed.feedID === state.activeFeedID) {
+        feedEl.classList.add('active');
+      }
+      feedListContainer.append(feedEl);
+    });
   });
 
-  input.addEventListener('input', (e) => {
-    formFsm.validateURL(e);
+  watch(state, 'itemList', () => {
+    const activeFeedItems = state.itemList[state.activeFeedID];
+    if (activeFeedItems && itemsListContainer.children.length !== activeFeedItems.length) {
+      renderItems(activeFeedItems);
+    }
   });
+
+  watch(state, 'activeFeedID', () => {
+    const { activeFeedID, prevFeedID } = state;
+    const activeFeedEl = document.getElementById(`feed-${activeFeedID}`);
+    const prevFeedEl = document.getElementById(`feed-${prevFeedID}`);
+    activeFeedEl.classList.add('active');
+    if (prevFeedEl) {
+      prevFeedEl.classList.remove('active');
+    }
+    const activeFeedItems = state.itemList[state.activeFeedID];
+    renderItems(activeFeedItems);
+  });
+
+  watch(state, 'modalDesc', () => {
+    modalContainer.textContent = state.modalDesc;
+  });
+
+  input.addEventListener('input', ({ target: { value } }) => {
+    state.checkURL(value);
+  });
+
   form.addEventListener('submit', (e) => {
-    formFsm.pushButton(e);
+    e.preventDefault();
+    state.addNewFeed(input.value);
   });
 };
