@@ -44,7 +44,7 @@ const updateFeedItems = () => {
       return;
     }
 
-    const promises = chunks[0].map(({ feedURL, feedID }) => (getDataFromUrl(feedURL, feedID)));
+    const promises = chunks[0].map(({ feedURL, feedID }) => getDataFromUrl(feedURL, feedID));
     Promise.all(promises)
       .then((values) => {
         values.forEach(({ items, feedID }) => {
