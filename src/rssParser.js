@@ -2,7 +2,7 @@ import { sortBy } from 'lodash';
 
 const parser = new DOMParser();
 
-export default (dataFromURL) => {
+export default (dataFromURL, feedID) => {
   const isDomParserError = parsedData => parsedData.getElementsByTagName('parsererror').length > 0;
   const isAtomFeedType = parsedData => parsedData.getElementsByTagName('entry').length > 0;
 
@@ -16,7 +16,6 @@ export default (dataFromURL) => {
   const feedTitle = parsedData.querySelector('channel title').textContent;
   const feedDesc = parsedData.querySelector('channel description').textContent;
   const itemsNodeList = parsedData.querySelectorAll('item');
-
   const items = Array.from(itemsNodeList).map((item) => {
     const itemTitle = item.querySelector('title').textContent;
     const itemDesc = item.querySelector('description').textContent;
@@ -28,5 +27,7 @@ export default (dataFromURL) => {
   });
   const sortedItems = sortBy(items, ['pubDate']);
 
-  return { feedTitle, feedDesc, items: sortedItems };
+  return {
+    feedTitle, feedDesc, feedID, items: sortedItems,
+  };
 };

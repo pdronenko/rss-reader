@@ -1,6 +1,4 @@
-import {
-  differenceBy, uniqueId, chunk, flatten,
-} from 'lodash';
+import { differenceBy, chunk, uniqueId } from 'lodash';
 import { isURL } from 'validator';
 import axios from 'axios';
 import getState from './states';
@@ -9,7 +7,9 @@ import parseRSS from './rssParser';
 
 export const state = getState();
 const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-const getDataFromUrl = url => axios.get(`${corsProxy}${url}`).then(({ data }) => parseRSS(data));
+const getDataFromUrl = (url, feedID = uniqueId()) => axios
+  .get(`${corsProxy}${url}`)
+  .then(({ data }) => parseRSS(data, feedID));
 
 export const updateInputState = (value) => {
   const urlCheckersList = [
@@ -36,36 +36,44 @@ export const updateInputState = (value) => {
 
 const updateFeedItems = () => {
   state.activeFeedUpdated = false;
-  const batchRequestsNum = 10;
-  const batchFeeds = chunk(state.feedList, batchRequestsNum);
-  const promises = batchFeeds.map(feeds => feeds
-    .map(({ feedURL, feedID }) => {
-      const oldItems = state.itemList[feedID];
-      return getDataFromUrl(feedURL)
-        .then((parsedData) => {
-          const newItems = parsedData.items;
-          const addedItems = differenceBy(newItems, oldItems, 'pubDate');
+  const sizeOfFeedsChunk = 10;
+  const chunksOfFeeds = chunk(state.feedList, sizeOfFeedsChunk);
+  const iter = (chunks) => {
+    if (chunks.length === 0) {
+      setTimeout(updateFeedItems, 5000);
+      return;
+    }
+
+    const promises = chunks[0].map(({ feedURL, feedID }) => (getDataFromUrl(feedURL, feedID)));
+    Promise.all(promises)
+      .then((values) => {
+        values.forEach(({ items, feedID }) => {
+          const oldItems = state.itemList[feedID];
+          const addedItems = differenceBy(items, oldItems, 'pubDate');
           if (addedItems.length > 0 && state.activeFeedID === feedID) {
             state.activeFeedUpdated = true;
           }
           state.itemList[feedID].push(...addedItems);
-        })
-        .catch(console.log);
-    }));
-  Promise.all(flatten(promises))
-    .finally(() => setTimeout(() => {
-      updateFeedItems();
-    }, 5000));
+        });
+      })
+      .catch(console.log)
+      .finally(() => {
+        iter(chunks.slice(1));
+      });
+  };
+
+  iter(chunksOfFeeds);
 };
 
 export const addNewFeed = (feedURL) => {
   state.feedRequestState = 'loading';
   getDataFromUrl(feedURL)
-    .then(({ feedTitle, feedDesc, items }) => {
+    .then(({
+      feedTitle, feedDesc, feedID, items,
+    }) => {
       if (state.feedList.length === 0) {
         updateFeedItems();
       }
-      const feedID = uniqueId();
       state.feedList = [{
         feedID, feedTitle, feedDesc, feedURL,
       }, ...state.feedList];
