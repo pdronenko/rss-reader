@@ -43,7 +43,7 @@ const updateFeedItems = () => {
       setTimeout(updateFeedItems, 5000);
       return;
     }
-    const promises = chunks[0].map(({ feedURL, feedID }) => getDataFromUrl(feedURL, feedID)x);
+    const promises = chunks[0].map(({ feedURL, feedID }) => getDataFromUrl(feedURL, feedID));
     Promise.all(promises)
       .then((values) => {
         values.forEach(({ items, feedID }) => {
