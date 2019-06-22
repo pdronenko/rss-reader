@@ -3,7 +3,7 @@ import {
 } from 'lodash';
 import { isURL } from 'validator';
 import axios from 'axios';
-import getState from './state';
+import getState from './states';
 import parseRSS from './rssParser';
 
 
