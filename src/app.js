@@ -1,24 +1,121 @@
 import { watch } from 'melanke-watchjs';
 import $ from 'jquery';
+import { differenceBy, chunk, uniqueId } from 'lodash';
+import { isURL } from 'validator';
+import axios from 'axios';
+import getState from './states';
+import parseRSS from './rssParser';
 import { renderAlert, renderItems, renderFeeds } from './renderers';
-import * as controllers from './controllers';
+
+const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+const getDataFromUrl = (url, feedID = uniqueId()) => axios
+  .get(`${corsProxy}${url}`)
+  .then(({ data }) => parseRSS(data, feedID));
 
 export default () => {
-  const { state } = controllers;
+  const state = getState();
   const form = document.getElementById('rss-form');
   const input = document.getElementById('input-feed');
   const addFeedBtn = document.getElementById('btn-add-feed');
   const addFeedBtnText = addFeedBtn.textContent;
   const modalContainer = document.getElementById('modal-body');
 
-  const handleClickFeed = (e) => {
-    const feedID = e.target.closest('a').hash.slice(1);
-    controllers.changeActiveFeed(feedID);
+  const updateInputState = (value) => {
+    const urlCheckersList = [
+      {
+        inputStateName: 'idle',
+        check: inputURL => inputURL === '',
+      },
+      {
+        inputStateName: 'notURL',
+        check: inputURL => !isURL(inputURL),
+      },
+      {
+        inputStateName: 'isDouble',
+        check: inputURL => state.feedList.some(({ feedURL }) => inputURL === feedURL),
+      },
+      {
+        inputStateName: 'isURL',
+        check: isURL,
+      },
+    ];
+    const { inputStateName } = urlCheckersList.find(({ check }) => check(value));
+    state.inputState = inputStateName;
   };
 
-  const handleClickDescButton = itemDesc => (e) => {
+  const updateFeedItems = () => {
+    state.activeFeedUpdated = false;
+    const sizeOfFeedsChunk = 10;
+    const chunksOfFeeds = chunk(state.feedList, sizeOfFeedsChunk);
+    const iter = (chunks) => {
+      if (chunks.length === 0) {
+        setTimeout(updateFeedItems, 5000);
+        return;
+      }
+      const promises = chunks[0].map(({ feedURL, feedID }) => getDataFromUrl(feedURL, feedID));
+      Promise.all(promises)
+        .then((values) => {
+          values.forEach(({ items, feedID }) => {
+            const oldItems = state.itemList[feedID];
+            const addedItems = differenceBy(items, oldItems, 'pubDate');
+            if (addedItems.length > 0 && state.activeFeedID === feedID) {
+              state.activeFeedUpdated = true;
+            }
+            state.itemList[feedID].push(...addedItems);
+          });
+        })
+        .catch(console.log)
+        .finally(() => {
+          iter(chunks.slice(1));
+        });
+    };
+    iter(chunksOfFeeds);
+  };
+
+  const addNewFeed = (feedURL) => {
+    state.feedRequestState = 'loading';
+    getDataFromUrl(feedURL)
+      .then(({
+        feedTitle, feedDesc, feedID, items,
+      }) => {
+        if (state.feedList.length === 0) {
+          updateFeedItems();
+        }
+        state.feedList = [{
+          feedID, feedTitle, feedDesc, feedURL,
+        }, ...state.feedList];
+        state.itemList = { ...state.itemList, [feedID]: items };
+        state.feedRequestState = 'success';
+      })
+      .catch((error) => {
+        console.log(error);
+        state.feedRequestState = 'failure';
+      })
+      .finally(() => {
+        state.inputState = 'idle';
+      });
+  };
+
+  const changeActiveFeed = (feedID) => {
+    state.prevFeedID = state.activeFeedID;
+    state.activeFeedID = feedID;
+  };
+
+  const changeModalDesc = (itemDesc) => {
+    state.modalDesc = itemDesc;
+  };
+
+
+  const handleClickFeed = (e) => {
+    const feedID = e.target.closest('a').hash.slice(1);
+    changeActiveFeed(feedID);
+  };
+
+  const handleClickDescButton = (e) => {
     e.preventDefault();
-    controllers.changeModalDesc(itemDesc);
+    const { feedId, pubDate } = e.target.dataset;
+    const { itemDesc } = state.itemList[feedId].find(item => item.pubDate === pubDate);
+    changeModalDesc(itemDesc);
   };
 
   watch(state, 'inputState', () => {
@@ -84,7 +181,7 @@ export default () => {
   watch(state, 'activeFeedUpdated', () => {
     if (state.activeFeedUpdated) {
       const activeFeedItems = state.itemList[state.activeFeedID];
-      renderItems(activeFeedItems, handleClickDescButton);
+      renderItems(state.activeFeedID, activeFeedItems, handleClickDescButton);
     }
   });
 
@@ -97,7 +194,7 @@ export default () => {
       prevFeedEl.classList.remove('active');
     }
     const activeFeedItems = state.itemList[state.activeFeedID];
-    renderItems(activeFeedItems, handleClickDescButton);
+    renderItems(activeFeedID, activeFeedItems, handleClickDescButton);
   });
 
   watch(state, 'modalDesc', () => {
@@ -105,12 +202,12 @@ export default () => {
   });
 
   input.addEventListener('input', ({ target: { value } }) => {
-    controllers.updateInputState(value);
+    updateInputState(value);
   });
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    controllers.addNewFeed(formData.get('input-feed'));
+    addNewFeed(formData.get('input-feed'));
   });
 };
