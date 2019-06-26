@@ -19,6 +19,7 @@ export default () => {
   const addFeedBtn = document.getElementById('btn-add-feed');
   const addFeedBtnText = addFeedBtn.textContent;
   const modalContainer = document.getElementById('modal-body');
+  const sizeOfFeedsChunkUpdate = 10;
 
   const updateInputState = (value) => {
     const urlCheckersList = [
@@ -45,8 +46,7 @@ export default () => {
 
   const updateFeedItems = () => {
     state.activeFeedUpdated = false;
-    const sizeOfFeedsChunk = 10;
-    const chunksOfFeeds = chunk(state.feedList, sizeOfFeedsChunk);
+    const chunksOfFeeds = chunk(state.feedList, sizeOfFeedsChunkUpdate);
     const iter = (chunks) => {
       if (chunks.length === 0) {
         setTimeout(updateFeedItems, 5000);
