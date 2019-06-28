@@ -95,21 +95,14 @@ export default () => {
     state.activeFeedID = feedID;
   };
 
-  const changeModalDesc = (itemDesc) => {
-    state.modalDesc = itemDesc;
-  };
-
-
   const handleClickFeed = (e) => {
     const feedID = e.target.closest('a').hash.slice(1);
     changeActiveFeed(feedID);
   };
 
-  const handleClickDescButton = (e) => {
+  const handleClickDescButton = itemDesc => (e) => {
     e.preventDefault();
-    const { feedId, pubDate } = e.target.dataset;
-    const { itemDesc } = state.itemList[feedId].find(item => item.pubDate === pubDate);
-    changeModalDesc(itemDesc);
+    state.modalDesc = itemDesc;
   };
 
   watch(state, 'inputState', () => {
@@ -175,7 +168,7 @@ export default () => {
   watch(state, 'activeFeedUpdated', () => {
     if (state.activeFeedUpdated) {
       const activeFeedItems = state.itemList[state.activeFeedID];
-      renderItems(state.activeFeedID, activeFeedItems, handleClickDescButton);
+      renderItems(activeFeedItems, handleClickDescButton);
     }
   });
 
@@ -188,7 +181,7 @@ export default () => {
       prevFeedEl.classList.remove('active');
     }
     const activeFeedItems = state.itemList[state.activeFeedID];
-    renderItems(activeFeedID, activeFeedItems, handleClickDescButton);
+    renderItems(activeFeedItems, handleClickDescButton);
   });
 
   watch(state, 'modalDesc', () => {
