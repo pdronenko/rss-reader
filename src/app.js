@@ -1,8 +1,9 @@
 import { watch } from 'melanke-watchjs';
 import $ from 'jquery';
-import { differenceBy, chunk, uniqueId } from 'lodash';
+import { uniqueId, unionBy } from 'lodash';
 import { isURL } from 'validator';
 import axios from 'axios';
+import pLimit from 'p-limit';
 import getState from './states';
 import parseRSS from './rssParser';
 import { renderAlert, renderItems, renderFeeds } from './renderers';
@@ -19,7 +20,6 @@ export default () => {
   const addFeedBtn = document.getElementById('btn-add-feed');
   const addFeedBtnText = addFeedBtn.textContent;
   const modalContainer = document.getElementById('modal-body');
-  const sizeOfFeedsChunkUpdate = 10;
 
   const updateInputState = (value) => {
     const urlCheckersList = [
@@ -44,32 +44,26 @@ export default () => {
     state.inputState = inputStateName;
   };
 
-  const updateFeedItems = () => {
+  const updateFeedItems = (feedDataArray) => {
+    feedDataArray.forEach(({ items, feedID }) => {
+      const oldItems = state.itemList[feedID];
+      const updatedItems = unionBy(oldItems, items, 'pubDate');
+      state.itemList[feedID] = updatedItems;
+      state.activeFeedUpdated = oldItems.length !== updatedItems.length;
+    });
+  };
+
+  const getFeedsUpdate = () => {
     state.activeFeedUpdated = false;
-    const chunksOfFeeds = chunk(state.feedList, sizeOfFeedsChunkUpdate);
-    const iter = (chunks) => {
-      if (chunks.length === 0) {
-        setTimeout(updateFeedItems, 5000);
-        return;
-      }
-      const promises = chunks[0].map(({ feedURL, feedID }) => getDataFromUrl(feedURL, feedID));
-      Promise.all(promises)
-        .then((values) => {
-          values.forEach(({ items, feedID }) => {
-            const oldItems = state.itemList[feedID];
-            const addedItems = differenceBy(items, oldItems, 'pubDate');
-            if (addedItems.length > 0 && state.activeFeedID === feedID) {
-              state.activeFeedUpdated = true;
-            }
-            state.itemList[feedID].push(...addedItems);
-          });
-        })
-        .catch(console.log)
-        .finally(() => {
-          iter(chunks.slice(1));
-        });
-    };
-    iter(chunksOfFeeds);
+    const requestLimit = pLimit(10);
+    const requestPromises = state.feedList
+      .map(({ feedURL, feedID }) => requestLimit(() => getDataFromUrl(feedURL, feedID)));
+
+    Promise.all(requestPromises)
+      .then(updateFeedItems)
+      .finally(() => {
+        setTimeout(getFeedsUpdate, 5000);
+      });
   };
 
   const addNewFeed = (feedURL) => {
@@ -79,7 +73,7 @@ export default () => {
         feedTitle, feedDesc, feedID, items,
       }) => {
         if (state.feedList.length === 0) {
-          updateFeedItems();
+          getFeedsUpdate();
         }
         state.feedList = [{
           feedID, feedTitle, feedDesc, feedURL,
