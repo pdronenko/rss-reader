@@ -79,7 +79,7 @@ export default () => {
         state.feedList = [{
           feedID, feedTitle, feedDesc, feedURL,
         }, ...state.feedList];
-        state.itemList = { ...state.itemList, [feedID]: items };
+        state.itemList[feedID] = items;
         state.feedRequestState = 'success';
       })
       .catch((error) => {
