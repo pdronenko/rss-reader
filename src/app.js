@@ -49,7 +49,8 @@ export default () => {
       const oldItems = state.itemList[feedID];
       const updatedItems = unionBy(oldItems, items, 'pubDate');
       state.itemList[feedID] = updatedItems;
-      state.activeFeedUpdated = oldItems.length !== updatedItems.length;
+      state.activeFeedUpdated = state.activeFeedID === feedID
+        && oldItems.length !== updatedItems.length;
     });
   };
 
