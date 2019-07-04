@@ -1,24 +1,25 @@
 import { watch } from 'melanke-watchjs';
-import $ from 'jquery';
-import { uniqueId, unionBy } from 'lodash';
+import { uniqueId, unionBy, values } from 'lodash';
 import { isURL } from 'validator';
 import axios from 'axios';
 import pLimit from 'p-limit';
 import getState from './states';
 import parseRSS from './rssParser';
-import { renderAlert, renderItems, renderFeeds } from './renderers';
+import { renderAlert, renderItems, renderChannels } from './renderers';
 
 const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-const getDataFromUrl = (url, feedID = uniqueId()) => axios
+const getDataFromUrl = url => axios
   .get(`${corsProxy}${url}`)
-  .then(({ data }) => parseRSS(data, feedID));
+  .then(({ data }) => parseRSS(data));
 
 export default () => {
-  const state = getState();
+  const { channelsData, states } = getState();
   const form = document.getElementById('rss-form');
-  const input = document.getElementById('input-feed');
-  const addFeedBtn = document.getElementById('btn-add-feed');
-  const addFeedBtnText = addFeedBtn.textContent;
+  const input = document.getElementById('input-url');
+  const channelsContainer = document.getElementById('channel-list');
+  const addChannelBtn = document.getElementById('btn-add-channel');
+  const invalidFeedback = document.querySelector('.invalid-feedback');
+  const addChannelBtnText = addChannelBtn.textContent;
   const modalContainer = document.getElementById('modal-body');
 
   const updateInputState = (value) => {
@@ -33,7 +34,8 @@ export default () => {
       },
       {
         inputStateName: 'isDouble',
-        check: inputURL => state.feedList.some(({ feedURL }) => inputURL === feedURL),
+        check: inputURL => values(channelsData.channels)
+          .some(({ url }) => url === inputURL),
       },
       {
         inputStateName: 'isURL',
@@ -41,115 +43,118 @@ export default () => {
       },
     ];
     const { inputStateName } = urlCheckersList.find(({ check }) => check(value));
-    state.inputState = inputStateName;
+    states.inputState = inputStateName;
   };
 
-  const updateFeedItems = (feedDataArray) => {
-    feedDataArray.forEach(({ items, feedID }) => {
-      const oldItems = state.itemList[feedID];
-      const updatedItems = unionBy(oldItems, items, 'pubDate');
-      state.itemList[feedID] = updatedItems;
-      state.activeFeedUpdated = state.activeFeedID === feedID
+  const updateChannelItems = (channelDataArray) => {
+    channelDataArray.forEach(({ items, id }) => {
+      const oldItems = channelsData.items[id];
+      const updatedItems = unionBy(items, oldItems, 'guid');
+      channelsData.items[id] = updatedItems;
+      states.activeChannelUpdated = states.activeChannelID === id
         && oldItems.length !== updatedItems.length;
     });
   };
 
-  const getFeedsUpdate = () => {
-    state.activeFeedUpdated = false;
+  const startUpdateChannels = () => {
+    states.activeChannelUpdated = false;
     const requestLimit = pLimit(10);
-    const requestPromises = state.feedList
-      .map(({ feedURL, feedID }) => requestLimit(() => getDataFromUrl(feedURL, feedID)));
+    const { channelsOrder, channels } = channelsData;
+    const requestPromises = channelsOrder
+      .map(id => requestLimit(() => getDataFromUrl(channels[id].url)
+        .then(({ items }) => ({ items, id }))));
 
     Promise.all(requestPromises)
-      .then(updateFeedItems)
+      .then(updateChannelItems)
       .finally(() => {
-        setTimeout(getFeedsUpdate, 5000);
+        setTimeout(startUpdateChannels, 5000);
       });
   };
 
-  const addNewFeed = (feedURL) => {
-    state.feedRequestState = 'loading';
-    getDataFromUrl(feedURL)
-      .then(({
-        feedTitle, feedDesc, feedID, items,
-      }) => {
-        if (state.feedList.length === 0) {
-          getFeedsUpdate();
+  const addNewChannel = (url) => {
+    states.channelRequestState = 'loading';
+    getDataFromUrl(url)
+      .then(({ channel, items }) => {
+        if (channelsData.channelsOrder.length === 0) {
+          startUpdateChannels();
         }
-        state.feedList = [{
-          feedID, feedTitle, feedDesc, feedURL,
-        }, ...state.feedList];
-        state.itemList[feedID] = items;
-        state.feedRequestState = 'success';
+        const id = uniqueId();
+        channelsData.channels[id] = { ...channel, url };
+        channelsData.items[id] = items;
+        channelsData.channelsOrder = [id, ...channelsData.channelsOrder];
+        states.channelRequestState = 'success';
       })
       .catch((error) => {
         console.log(error);
-        state.feedRequestState = 'failure';
+        states.channelRequestState = 'failure';
       })
       .finally(() => {
-        state.inputState = 'idle';
+        states.inputState = 'idle';
       });
   };
 
-  const changeActiveFeed = (feedID) => {
-    state.prevFeedID = state.activeFeedID;
-    state.activeFeedID = feedID;
+  const changeActiveChannel = (channelID) => {
+    states.prevChannelID = states.activeChannelID;
+    states.activeChannelID = channelID;
   };
 
-  const handleClickFeed = (e) => {
-    const feedID = e.target.closest('a').hash.slice(1);
-    changeActiveFeed(feedID);
-  };
-
-  const handleClickDescButton = itemDesc => (e) => {
+  const handleClickChannel = (e) => {
     e.preventDefault();
-    state.modalDesc = itemDesc;
+    const { channelId } = e.target.closest('a').dataset;
+    changeActiveChannel(channelId);
   };
 
-  watch(state, 'inputState', () => {
+  const handleClickDescButton = (e) => {
+    e.preventDefault();
+    const { guid } = e.target.closest('a').dataset;
+    const { activeChannelID } = states;
+    const activeItemsData = values(channelsData.items[activeChannelID]);
+    const { description } = activeItemsData.find(item => item.guid === guid);
+    states.modalDesc = description;
+  };
+
+  watch(states, 'inputState', () => {
     const inputClasses = input.classList;
-    inputClasses.remove('border-danger', 'border-warning', 'border-success');
+    inputClasses.remove('is-invalid', 'is-valid');
     input.removeAttribute('readonly');
-    addFeedBtn.setAttribute('disabled', 'disabled');
-    addFeedBtn.dataset.originalTitle = '';
-    $('#btn-add-feed').tooltip('hide');
-    addFeedBtn.innerHTML = addFeedBtnText;
-    switch (state.inputState) {
+    addChannelBtn.setAttribute('disabled', 'disabled');
+    addChannelBtn.innerHTML = addChannelBtnText;
+    switch (states.inputState) {
       case 'idle': {
         break;
       }
       case 'notURL': {
-        inputClasses.add('border-danger');
+        invalidFeedback.textContent = 'Wrong URL!';
+        inputClasses.add('is-invalid');
         break;
       }
       case 'isDouble': {
-        inputClasses.add('border-warning');
-        addFeedBtn.dataset.originalTitle = 'This URL is already added';
-        $('#btn-add-feed').tooltip('show');
+        invalidFeedback.textContent = 'This URL is already added';
+        inputClasses.add('is-invalid');
         break;
       }
       case 'isURL': {
-        inputClasses.add('border-success');
-        addFeedBtn.removeAttribute('disabled');
+        inputClasses.add('is-valid');
+        addChannelBtn.removeAttribute('disabled');
         break;
       }
       default:
-        console.log(`${state.inputState} - wrong value`);
+        console.log(`${states.inputState} - wrong value`);
     }
   });
 
-  watch(state, 'feedRequestState', () => {
-    const { feedRequestState } = state;
-    switch (feedRequestState) {
+  watch(states, 'channelRequestState', () => {
+    switch (states.channelRequestState) {
       case 'loading': {
         input.setAttribute('readonly', 'readonly');
-        addFeedBtn.setAttribute('disabled', 'disabled');
-        addFeedBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
+        addChannelBtn.setAttribute('disabled', 'disabled');
+        addChannelBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
         break;
       }
       case 'success': {
-        const newFeedTitle = state.feedList[0].feedTitle;
-        renderAlert('alert-success', `Feed "${newFeedTitle}" successfuly added`);
+        const newChannelID = channelsData.channelsOrder[0];
+        const { title } = channelsData.channels[newChannelID];
+        renderAlert('alert-success', `Feed "${title}" successfuly added`);
         input.value = '';
         break;
       }
@@ -158,44 +163,41 @@ export default () => {
         break;
       }
       default:
-        console.log(`${feedRequestState} - wrong value`);
+        console.log(`${states.channelRequestState} - wrong value`);
     }
   });
 
-  watch(state, 'feedList', () => {
-    renderFeeds(state.feedList, state.activeFeedID, handleClickFeed);
+  watch(channelsData, 'channelsOrder', () => {
+    renderChannels(channelsData, states.activeChannelID);
   });
 
-  watch(state, 'activeFeedUpdated', () => {
-    if (state.activeFeedUpdated) {
-      const activeFeedItems = state.itemList[state.activeFeedID];
-      renderItems(activeFeedItems, handleClickDescButton);
+  watch(states, 'activeChannelUpdated', () => {
+    if (states.activeChannelUpdated) {
+      const { activeChannelID } = states;
+      const activeChannelItems = channelsData.items[activeChannelID];
+      renderItems(activeChannelItems, handleClickDescButton);
     }
   });
 
-  watch(state, 'activeFeedID', () => {
-    const { activeFeedID, prevFeedID } = state;
-    const activeFeedEl = document.getElementById(`feed-${activeFeedID}`);
-    const prevFeedEl = document.getElementById(`feed-${prevFeedID}`);
-    activeFeedEl.classList.add('active');
-    if (prevFeedEl) {
-      prevFeedEl.classList.remove('active');
-    }
-    const activeFeedItems = state.itemList[state.activeFeedID];
-    renderItems(activeFeedItems, handleClickDescButton);
+  watch(states, 'activeChannelID', () => {
+    renderChannels(channelsData, states.activeChannelID);
+    const activeChannelItems = channelsData.items[states.activeChannelID];
+    renderItems(activeChannelItems, handleClickDescButton);
   });
 
-  watch(state, 'modalDesc', () => {
-    modalContainer.textContent = state.modalDesc;
+  watch(states, 'modalDesc', () => {
+    modalContainer.textContent = states.modalDesc;
   });
 
   input.addEventListener('input', ({ target: { value } }) => {
     updateInputState(value);
   });
 
+  channelsContainer.addEventListener('click', handleClickChannel);
+
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    addNewFeed(formData.get('input-feed'));
+    addNewChannel(formData.get('input-url'));
   });
 };

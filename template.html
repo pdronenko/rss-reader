@@ -12,20 +12,25 @@
           <form id="rss-form">
             <div class="input-group mb-3">
               <div class="input-group-prepend">
-                <button type="submit" class="btn btn-primary" id="btn-add-feed" data-toggle="tooltip" data-placement="bottom" data-original-title="" disabled>Add Feed</button>
+                <button type="submit" class="btn btn-primary" id="btn-add-channel" disabled>Add Feed</button>
               </div>
-              <input type="text" name="input-feed" class="form-control" id="input-feed" placeholder="Enter a website or feed url" aria-label="Enter a website or feed url">
+              <input type="text" name="input-url" class="form-control" id="input-url" placeholder="Enter a website or feed url" aria-label="Enter a website or feed url">
+              <div class="valid-feedback" style="margin-left: 112px;">
+                Looks good!
+              </div>
+              <div class="invalid-feedback" style="margin-left: 112px;">
+              </div>
             </div>
           </form>
       </div>
       <div id='alert-container'>
       </div>
       <div class="row">
-        <div class="col-4">
-            <div class="list-group" id='feed-list'>
+        <div class="col-12 col-md-4">
+            <div class="list-group" id='channel-list'>
             </div>
         </div>
-        <div class="list-group col-8" id="item-list">
+        <div class="list-group col-12 col-md-8" id="item-list">
         </div>
       </div>
       <div id="modalDesc" class="modal fade">
